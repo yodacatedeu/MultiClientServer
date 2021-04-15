@@ -16,6 +16,10 @@ import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.FileReader;
 import java.io.FileWriter;
+import java.security.InvalidKeyException;
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 
 public class Server {
     private static final ArrayList <ClientObj> clientList = new ArrayList<>(10);
@@ -31,6 +35,31 @@ public class Server {
     private static final ArrayList<String> blackList = new ArrayList<>();
      
     public static void main (String[] args) throws InterruptedException, IOException {
+        // Get device's IP address in use
+        String deviceIP = null;
+        String publicIP = null;
+        System.out.println("Getting device's IP address...");
+        try (final DatagramSocket socket= new DatagramSocket()) {
+            socket.connect(InetAddress.getByName("8.8.8.8"), 10002);
+            deviceIP = socket.getLocalAddress().getHostAddress();
+            //System.out.println(deviceIP);
+            socket.close();  
+            System.out.println("done.");
+        } 
+        
+        // Get public IP address
+        System.out.println("Getting public IP address...");
+        try {
+            URL url_name = new URL("http://bot.whatismyipaddress.com");
+            BufferedReader sc = new BufferedReader(new InputStreamReader(url_name.openStream()));
+            publicIP = sc.readLine();
+            //System.out.println(publicIP);
+            sc.close();
+            System.out.println("done.");
+        }
+        catch (MalformedURLException e) {
+            System.err.println("Failed to get device's public IP address.");
+        }
         
         System.out.println("Opening Blacklist file...");
         FileReader inFile = new FileReader("BlackList.txt");
@@ -43,10 +72,11 @@ public class Server {
         }
         inFile.close();
         System.out.println("Done.");
-        
-        serverIP = "192.168.1.129";
+        //System.out.println(InetAddress.getLocalHost().getHostAddress() +"\n" + InetAddress.getLocalHost().getHostName());
+        //serverIP = "192.168.1.129";
+        serverIP = deviceIP;
         Scanner reader = new Scanner(System.in);
-        System.out.println("Set server password: ");
+        System.out.println("\nSet server password: ");
         password = reader.nextLine();
         Thread messenger;
         
@@ -60,8 +90,9 @@ public class Server {
             SocketAddress endPoint = new InetSocketAddress(ia, getPort());
             getSock().bind(endPoint);
             up = true;
-            System.out.println("Server bound to \ndevice IP address " + getSock().getInetAddress().toString() + "\nPort " + getSock().getLocalPort());
-            System.out.println("Remote users will have to connect to router's IP address.");
+            System.out.println("\n" + new java.util.Date().toString());
+            System.out.println("Server bound to: \nDevice IP address: " + getSock().getInetAddress().getHostAddress() + "\nPort " + getSock().getLocalPort());
+            System.out.println("Public IP address: " + publicIP);
             System.out.println("Password: " + getPassword());
             
             messenger = new Thread(new ServerMessenger());
@@ -192,10 +223,10 @@ public class Server {
             cipher.init(Cipher.DECRYPT_MODE, secretKey);
             return new String(cipher.doFinal(Base64.getDecoder().decode(strToDecrypt)));
         } 
-        catch (Exception e) 
+        catch (InvalidKeyException | NoSuchAlgorithmException | BadPaddingException | IllegalBlockSizeException | NoSuchPaddingException | IllegalArgumentException e) 
         {
             System.err.println("Error while decrypting: " + e.toString());
-            throw e;
+            throw new ArithmeticException();
         }
         //return null;
     }
